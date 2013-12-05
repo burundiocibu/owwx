@@ -1,0 +1,100 @@
+#!/usr/bin/env python
+
+
+from optparse import OptionParser
+parser = OptionParser()
+
+parser.add_option("-d", "--debug", default=0, dest="debug", action="count",
+                  help="Increase the debugLevel")
+
+parser.add_option("-n", "--node-name", dest="node",
+                  type="string", action="store",
+                  help="node name to access.")
+
+parser.add_option("-s", "--start", dest="start",
+                  type="string", action="store",
+                  help="Specify the start time of the graph")
+
+parser.add_option("-e", "--end", dest="end",
+                  type="string", action="store",
+                  help="Specify the end time of the graph")
+
+(options, args) = parser.parse_args()
+
+if len(args) and options.inputFile == None:
+    options.inputFile = args[0]
+
+if options.debug:
+    print options
+
+import datetime, tables
+from pylab import *
+from sys import exit, stdin
+import OwConfig
+
+fh = tables.openFile(OwConfig.h5_file, mode = "r") 
+
+now = datetime.datetime.now()
+dt = datetime.timedelta(1) # one day ago
+t0 = now - dt
+t0 = t0.toordinal()+(t0.hour*3600 + t0.minute*60 + t0.second)/86400.0
+if options.debug:
+    print "now:", now
+    print "t0:", now-dt
+    
+tname = "/%s"%options.node
+if options.debug: print tname,
+try:
+    table=fh.getNode(tname)
+    t=array([x['time'] for x in table])
+    uA=array([x['val'] for x in table])
+    #    data=numpy.array([(x['time'],x['val']) for x in table.iterrows() 
+    #                      if (x['val'] < 160 and x['time']>t0)])
+    fh.close()
+except tables.NoSuchNodeError:
+    print "No Such Node /%s"%tname
+    sys.exit(-1)
+    
+print size(t),"rows"
+lon=OwConfig.location[0]
+lat=OwConfig.location[1]
+
+import solar
+# Note that time is recorded in CST/CDT
+d_utc=matplotlib.dates.num2date(t+6./24.)
+el=array([solar.GetAltitude(lat,lon,x) for x in d_utc])
+clip(el,0,90,el)
+
+def GetDayOfYear(utc_datetime):
+        year_start = datetime.datetime(utc_datetime.year, 1, 1,tzinfo=utc_datetime.tzinfo)
+        delta = (utc_datetime - year_start)
+        return delta.days
+
+def GetAirMassRatio(altitude_deg):
+        # from Masters, p. 412
+        # warning: pukes on input of zero
+        return (1/math.sin(math.radians(altitude_deg)))
+
+def GetApparentExtraterrestrialFlux(day):
+        # from Masters, p. 412
+        return 1160 + (75 * math.sin((360./365) * (day - 275)))
+
+def GetOpticalDepth(day):
+        # from Masters, p. 412
+        return 0.174 + (0.035 * math.sin((360./365) * (day - 100)))
+
+def GetRadiationDirect(utc_datetime, altitude_deg):
+        # from Masters, p. 412
+        if(altitude_deg > 0):
+                day = GetDayOfYear(utc_datetime)
+                flux = GetApparentExtraterrestrialFlux(day)
+                optical_depth = GetOpticalDepth(day)
+                air_mass_ratio = GetAirMassRatio(altitude_deg)
+                return flux  * math.exp(-1 * optical_depth * air_mass_ratio)
+        else:
+                return 0.0
+sl=[GetRadiationDirect(x[0],x[1]) for x in zip(d_utc,el)]
+
+
+#plot_date(x, y, marker, label=sname, ms=2.5, lw=lw,
+#         color=color, alpha=a)

@@ -1,0 +1,108 @@
+#!/usr/bin/env python
+
+import ow, datetime, time, sys, numpy
+import string
+import tables
+import matplotlib
+
+import OwConfig, OwLib
+from OwConfig import owlabels
+from OwConfig import owaddrs
+#from OwLib import read_sensor, find_all_sensors, init_sensor_list
+
+
+if __name__ == "__main__":
+    from optparse import OptionParser
+    import pprint
+    data=[]
+    pp = pprint.PrettyPrinter(indent=3)
+    parser = OptionParser()
+    parser.add_option("-d", "--debug",
+                      dest="debug", default=0, action="count",
+                      help="Increase the debug level")
+
+    parser.add_option("-s", "--server", default="ralph:3001",
+                      dest="server", action="store",
+                      help="Specify owserver address")
+
+    parser.add_option("-l", "--label", default=[],
+                      dest='labels', action='append',
+                      help='labels to monitor')
+
+    parser.add_option("-r", "--rate", default=30, action="store",
+                      dest="rate",
+                      help="Rate, in seconds, to sample sensors.")
+
+    parser.add_option("-u", "--uncorrected", default=0, action="count",
+                      dest="uncorrected",
+                      help="Do not apply correction to sensors. Usefull for calibrating sensors.")
+
+    (options, args) = parser.parse_args()
+
+    OwConfig.debug = OwLib.debug = options.debug
+    if options.debug:
+        pp.pprint(options)
+
+    if options.uncorrected:
+        OwConfig.ct = {}
+
+    # initialize the interface and set the desired units.
+    ow.init(options.server)
+    # for some reason, with python 2.7, the following call seems to be ignored and results are
+    # always in C
+    #ow._OW.put('/settings/units/temperature_scale', 'F')
+
+    all_sensors = OwLib.find_all_sensors()
+
+    if len(options.labels):
+
+        rate = int(options.rate)
+        slist=[]
+        for l in options.labels:
+            address=owaddrs[l]
+            if not all_sensors.has_key(address):
+                continue
+            slist.append(all_sensors[address])
+
+        print "# time     ",
+        for s in slist:
+            print "%-8s"%owlabels[s.address],
+            if rate<60:
+                s.useCache(False)
+        print
+
+        while True:
+            t = time.time()
+            row=[t]
+            print time.strftime("%H:%M:%S"),
+            for s in slist:
+                v=OwLib.read_sensor(s)
+                print "%8.2f"%(v),
+                row.append(v)
+            print
+            time.sleep(rate)
+        # end of infinite loop
+    else:
+        OwConfig.init_sensor_list(all_sensors)
+        sensor_list = OwConfig.sensor_list
+
+        print "Started at",time.strftime("%m/%d/%y %H:%M:%S")
+        print [n for n,s in sensor_list.items() if 'sensor' in s.keys() or 'src' in s.keys()]
+        t = time.time()
+        while True:
+            time.sleep(0.5)
+            OwLib.update_all_sensors(sensor_list)
+
+            if time.time() - t > OwConfig.log_rate:
+                OwLib.compute_obs(sensor_list)
+                for name,sensor in sensor_list.items():
+                    value = sensor['value']
+                    if value:
+                        print sensor['fmt']%value,
+                    else:
+                        print sensor['fmt']%999,
+                print
+                t = time.time()
+
+        #
+

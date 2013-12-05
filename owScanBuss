@@ -1,0 +1,45 @@
+#!/usr/bin/env python
+
+import ow, datetime, time, sys, numpy
+import string
+import tables
+import matplotlib,pylab
+
+import OwConfig, OwLib
+
+def main():
+    from optparse import OptionParser
+    parser = OptionParser()
+    parser.add_option("-d", "--debug",
+                      dest="debug", default=0, action="count",
+                      help="Increase the debug level")
+
+    (options, args) = parser.parse_args()
+
+    OwConfig.debug = options.debug
+    OwLib.debug = options.debug
+    if options.debug:
+        print "Debug: %d" % options.debug
+        print "Connecting to: %s" % OwConfig.owserver
+
+    ow.init(OwConfig.owserver)
+ 
+    # See which sensors are actually present on the net and report the missing
+    print "Scanning buss for all devices"
+    all_sensors = OwLib.find_all_sensors()
+    OwConfig.init_sensor_list(all_sensors)
+
+    if options.debug==1:
+        for s,c in OwConfig.sensor_list.iteritems():
+            if 'sensor' in c.keys():
+                print s, c['label'], c['sensor']
+    elif options.debug==2:
+        import pprint
+        pp = pprint.PrettyPrinter(indent=3)
+        pp.pprint(OwConfig.sensor_list)
+
+    return
+# end of main()
+
+if __name__ == "__main__":
+    main()

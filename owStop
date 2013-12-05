@@ -1,0 +1,6 @@
+#!/bin/bash
+
+echo Stopping the owfs and related stuff
+
+pkill owhttpd
+sudo pkill owserver

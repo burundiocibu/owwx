@@ -1,0 +1,212 @@
+#!/usr/bin/env python
+
+import time, datetime, tables
+from sys import exit, stdin
+import h5
+
+from OwLib import dewpoint, wvpp
+
+import OwConfig
+
+from optparse import OptionParser
+parser = OptionParser()
+
+parser.add_option("-d", "--debug", default=0, dest="debug", action="count",
+                  help="Increase the debug level. A level of 2 or greater will run an interactive graph.")
+
+parser.add_option("-g", "--graph", dest="graph", action="store",
+                  type="string", help="specify a graph to generate")
+
+parser.add_option("-i", "--input", dest="h5fn", action="store", default=OwConfig.h5_file,
+                  type="string", help="Name of the hdf input file")
+
+parser.add_option("-s", "--start", dest="start",
+                  type="float", action="store",
+                  help="Specify the start time of the graph")
+
+parser.add_option("-t", "--dt", dest="dt",
+                  type="float", action="store",
+                  help="Specify the length of time to graph.")
+
+
+(options, args) = parser.parse_args()
+
+if options.graph == "help":
+    print OwConfig.graph_list.keys()
+
+if options.graph and not OwConfig.graph_list.has_key(options.graph):
+    print "Graph \"%s\" not found. Exiting."%options.graph
+    exit(-1)
+
+if options.debug:
+    print options
+
+fh = h5py.openFile(options.h5fn, "r") 
+import matplotlib
+
+if options.debug<2:
+    matplotlib.use('Agg')
+elif options.debug==2:
+    matplotlib.use('GTKAgg')
+
+import numpy
+from matplotlib.dates import date2num, num2date
+from pylab import *
+from numpy import array
+import types
+
+tEnd = datetime.datetime.now()
+t1 = date2num(tEnd)
+
+for gname,graph in OwConfig.graph_list.items():
+    if options.graph and options.graph != gname: continue
+    
+    png_fn = "%s/%s.png"%(OwConfig.png_dir, gname)
+    if options.dt:
+        dt = datetime.timedelta(options.dt)
+    else:
+        dt = datetime.timedelta(graph['dt'])
+    if options.start:
+        tEnd = tEnd - datetime.timedelta(options.start)
+    tStart = tEnd - dt
+    t0 = date2num(tStart)
+
+    if options.debug:
+        print "Building", png_fn
+        print tStart, "...", tEnd
+
+    fig = figure(figsize=(7,4), dpi=96)
+    ax = fig.add_axes([0.065, 0.12, .88, 0.80]) # left, bottom ,width ,height
+    has_data=False
+    try:
+        for sname in graph['sensors']:
+            if options.debug: print sname,
+            sensor = OwConfig.sensor_list[sname]
+            marker = sensor.get('marker','+-')
+            color = sensor.get('color','black')
+            if sensor['label'] == 'derived':
+                sources = sensor['sources']
+                if options.debug: print "Computing",sources
+                if sources[0] == 'dewpoint':
+                    h_node = fh.getNode("/%s"%sources[2])
+                    t_node = fh.getNode("/%s"%sources[1])
+                    t = array.
+                    ([ (row['time'], row['val'])
+                                for row in t_node.where('time>t0') ])
+                    h = array([ (row['time'], row['val'])
+                                for row in h_node.where('time>t0') ])                   
+                    data = t
+                    n=min(t.shape[0],h.shape[0])
+                    for i in range(n):
+                        data[i,1] = dewpoint(t[i,1],h[i,1])
+                elif sources[0] == 'wvpp':
+                    h_node = fh.getNode("/%s"%sources[2])
+                    t_node = fh.getNode("/%s"%sources[1])
+                    t = array([ (row['time'], row['val'])
+                                for row in t_node.where('time>t0') ])
+                    h = array([ (row['time'], row['val'])
+                                for row in h_node.where('time>t0') ])                   
+                    data = t
+                    n=min(t.shape[0],h.shape[0])
+                    for i in range(n):
+                        data[i,1] = wvpp(t[i,1],h[i,1])                    
+                elif sources[0] == 'rainday': # Cumulative rain today
+                    dt = datetime.timedelta(graph['dt'])
+                    tStart = tEnd - dt
+                    t0 = date2num(tStart)
+                    node = fh.getNode("/%s"%sources[1])
+                    data = array([ (row['time'], row['val'])
+                                   for row in node.where('time>t0') ])                   
+            else:
+                tname = "/%s"%sname
+                table=fh.getNode(tname)
+                data=array([ (row['time'], row['val'])
+                             for row in table.where('time>t0') ])
+
+            if data.size == 0: continue
+            if options.debug: print "(%d %d)"%data.shape,
+            x = data[:,0]
+            y = data[:,1]
+
+            if graph.get('delta', False):
+                y = y - y[0]
+
+            pct = sensor.get('smoothing', 0)
+            if pct==0: a=1.0
+            else: a=0.7
+            lw=sensor.get('linewidth',1)
+            ax.plot_date(x, y, marker, label=sname, ms=2.5, lw=lw,
+                      color=color, alpha=a)
+            has_data=True
+            if sensor.get('junk',False): #graph.has_key('junk'):
+                #min value
+                ax.annotate("%.1f"%y[argmin(y)], (x[argmin(y)], y[argmin(y)]),
+                         xycoords='data', xytext=(-10,+20), textcoords='offset points', size=8,
+                         arrowprops=dict(arrowstyle="->"))
+                #max value
+                ax.annotate("%.1f"%y[argmax(y)], (x[argmax(y)], y[argmax(y)]),
+                         xycoords='data', xytext=(-10,-30), textcoords='offset points', size=8,
+                         arrowprops=dict(arrowstyle="->"))
+                # current value
+                ax.text(x[-1]+0.01, y[-1], "%.1f"%y[-1], size=9)
+                ax.axvline(t1-1, alpha=0.25)
+
+                
+            n = int(y.size * pct /100)
+            if n>3 and n<y.size:
+                if options.debug:
+                    print "Smoothing over %d points"%(n)
+                s=numpy.r_[2*y[0]-y[n:1:-1],y,2*y[-1]-y[-1:-n:-1]]
+                w=eval('numpy.bartlett(n)')
+                y=numpy.convolve(w/w.sum(),s,mode='same')
+                y=y[n-1:-n+1]
+                y=y[n-1:-n+1]
+                x=x[n-1:-n+1]        
+                ax.plot_date(x, y, '-', color=color, lw=1.5)
+
+    except tables.NoSuchNodeError:
+        print "No Such Node /%s"%tname
+
+    if not has_data: continue
+
+    xr=ptp(ax.get_xlim()) # The number of days the graph is wide
+    if xr < 2:        xMajorFmt=DateFormatter("%2H:%02M")
+    elif xr < 7:      xMajorFmt=DateFormatter("%2H:%02M\n%a")
+    else:             xMajorFmt=DateFormatter("%m/%d\n%Y")
+    ax.xaxis.set_major_formatter(xMajorFmt)
+    ax.xaxis_date()
+    ax.autoscale_view()
+    xlabels=ax.get_xticklabels()
+    setp(xlabels, fontsize=8, family='sans-serif', rotation=0,
+         horizontalalignment='center')
+
+    ylabels=ax.get_yticklabels()
+    setp(ylabels, fontsize=9, family='sans-serif')
+
+    leg = ax.legend(loc='best', numpoints=1, labelspacing = 0.015, handlelength=0.3,
+                    handletextpad=0.2, borderaxespad=0.)
+    setp(leg.get_texts(), size=9, family="sans-serif")
+    setp(leg.get_lines(), linewidth=2)
+
+    if graph.has_key('y_lim'):
+        ax.set_ylim(graph['y_lim'])
+        if options.debug: print "y_lim=", graph['y_lim']
+
+    ax.grid(True)
+
+    title= graph.get('title', gname)
+    ax.set_title(title, size=12, family='sans-serif')
+    figtext(0.01, 0.01, tStart.strftime("Data starts %A, %B %d, %Y"),
+            fontsize=8)
+
+    if options.debug: print "done."
+
+    if options.debug>1:
+        show()
+        break
+    else:
+        savefig(png_fn)
+        close()
+#
+
+fh.close()

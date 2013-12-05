@@ -1,0 +1,8 @@
+#!/bin/bash
+
+echo Statrting up the owfs and related stuff
+
+#owserver -p 3001 -d /dev/ttyUSB0 -F
+sudo /opt/owfs/bin/owserver -p 3001 -uall -F
+owhttpd -p 3002 -s localhost:3001 -F
+# owfs -s localhost:3001 /home/littlej/wx/owfs

@@ -1,0 +1,57 @@
+#!/usr/bin/env python
+
+import time, datetime, numpy, matplotlib, pylab, tables
+from sys import exit, stdin
+
+import OwConfig
+
+from optparse import OptionParser
+parser = OptionParser()
+
+parser.add_option("-d", "--debug", default=0, dest="debug", action="count",
+                  help="Increase the debugLevel")
+
+parser.add_option("-i", "--input", dest="h5fn", action="store", default=OwConfig.h5_file,
+                  type="string", help="Name of the hdf input file")
+
+parser.add_option("-n", "--node-name", dest="node",
+                  type="string", action="store",
+                  help="node name to access.")
+
+parser.add_option("-s", "--start", dest="start",
+                  type="string", action="store",
+                  help="Specify the start time of the graph")
+
+parser.add_option("-e", "--end", dest="end",
+                  type="string", action="store",
+                  help="Specify the end time of the graph")
+
+(options, args) = parser.parse_args()
+
+if options.debug:
+    print options
+
+fh = tables.openFile(options.h5fn, mode = "r") 
+
+now = datetime.datetime.now()
+dt = datetime.timedelta(2) # one day ago
+t0 = now - dt
+t0 = t0.toordinal()+(t0.hour*3600 + t0.minute*60 + t0.second)/86400.0
+if options.debug:
+    print "now:", now
+    print "t0:", now-dt 
+    
+tname = "/%s"%options.node
+if options.debug: print tname,
+try:
+    table=fh.getNode(tname)
+    data=numpy.array([(x['time'],x['val']) for x in table.iterrows() 
+                      if (x['val'] < 160 and x['time']>t0)])
+    
+    print data.shape
+    print data
+    
+except tables.NoSuchNodeError:
+    print "No Such Node /%s"%tname
+
+fh.close()

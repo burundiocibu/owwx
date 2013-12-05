@@ -1,0 +1,120 @@
+#!/usr/bin/env python
+
+import ow, datetime, time, sys, numpy
+import string
+import tables
+import matplotlib,pylab
+
+import OwConfig, OwLib
+
+def main():
+    from optparse import OptionParser
+    parser = OptionParser()
+    parser.add_option("-d", "--debug",
+                      dest="debug", default=0, action="count",
+                      help="Increase the debug level")
+
+    (options, args) = parser.parse_args()
+
+    OwConfig.debug = options.debug
+    OwLib.debug = options.debug
+
+    if options.debug:
+        print "Debug: %d" % options.debug
+        print "Connecting to: %s" % OwConfig.owserver
+        print "Logging rate: %d seconds" % OwConfig.log_rate
+        print "H5 file: %s" % OwConfig.h5_file
+        print "Log file: %s" % OwConfig.log_file
+
+    # initialize the interface and set the desired units.
+    ow.init(OwConfig.owserver)
+    # for some reason, with python 2.7, the following call seems to be ignored and results are
+    # always in C
+    # ow._OW.put('/settings/units/temperature_scale', 'F')
+
+    all_sensors = OwLib.find_all_sensors()
+    OwConfig.init_sensor_list(all_sensors)
+    sensor_list = OwConfig.sensor_list
+
+    logFile = open(OwConfig.log_file, mode='a')
+    log_values(logFile, sensor_list, print_header=True)
+    h5File = tables.openFile(OwConfig.h5_file, mode='a')
+
+    t_print = time.time()
+    while True:
+        time.sleep(0.5)
+        OwLib.update_all_sensors(sensor_list)
+        
+        t = time.time()
+        if t - t_print > OwConfig.log_rate:
+            OwLib.compute_obs(sensor_list)
+            if options.debug==1:
+                OwLib.print_values(sensor_list)
+            log_values(logFile, sensor_list)
+            write_h5(h5File, sensor_list)
+            t_print = t
+    # end of infinite loop
+
+    return
+# end of main()
+
+
+
+
+def write_h5(fh, sensor_list):
+    """Store current readings into the hdf5 file."""
+    for name,sensor in sensor_list.items():
+        if sensor['value'] == None:
+            continue
+        try:
+            tbl = fh.getNode("/%s"%name)
+        except tables.NoSuchNodeError:
+            print "No table:", name
+            if not sensor.get('ignore',False):
+                print "Creating table", name
+                fh.createTable(fh.root, name, OwLib.H5Obs)
+                tbl = fh.getNode("/%s"%name)
+        row = tbl.row
+        # Everywhere else we use time as seconds into the unix epoch
+        # in the h5 file, we store days since 0001-01-01 00:00:00
+        # this is to work with matplotlib plot_date.
+        dt=datetime.datetime.fromtimestamp(sensor['time'])
+        row['time'] = matplotlib.dates.date2num(dt)
+        row['val'] = sensor['value']
+        row.append()
+        tbl.flush()
+    fh.flush()
+    return
+# end write_h5()
+
+
+def log_values(logFile, sensor_list, print_header=False):
+    """Logs all current values as text to the indicated file"""
+
+    t = time.strftime("%m/%d/%y %H:%M:%S")
+
+    if print_header:
+        print >>logFile, "# owlogger started at %s"%t
+        header = [n for n,s in sensor_list.items() if 'sensor' in s.keys() or 'src' in s.keys()]
+        logFile.write("# MM/DD/YY HH:MM:SS")
+        for n in header:
+            logFile.write(","+n)
+        logFile.write("\n")
+        return
+
+    logFile.write(t+",")
+    for name,sensor in sensor_list.items():
+        value = sensor['value']
+        if value == None:
+            value = -999
+        logFile.write(sensor['fmt']%value)
+        logFile.write(',')
+
+    logFile.write("\n")
+    logFile.flush()
+    return
+# end of log_values()
+
+
+if __name__ == "__main__":
+    main()

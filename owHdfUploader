@@ -1,0 +1,148 @@
+#!/usr/bin/env python
+
+import time, datetime, tables
+from sys import exit, stdin
+from OwLib import dewpoint
+import OwConfig
+
+from optparse import OptionParser
+parser = OptionParser()
+
+parser.add_option("-d", "--debug", default=0, dest="debug", action="count",
+                  help="Increase the debugLevel")
+
+parser.add_option("-s", "--host",
+                  default="http://weatherstation.wunderground.com/weatherstation/updateweatherstation.php",
+                  dest="host", action="store",
+                  help="Specifies the host to upload weather data to")
+
+parser.add_option("-i", "--site-id",
+                  default="KTXAUSTI99",
+                  dest="site_id", action="store",
+                  help="The wx station id")
+
+parser.add_option("-p", "--password",
+                  dest="password", action="store",
+                  help="Password use to upload data with.")
+
+parser.add_option("-n", "--dry-run",
+                  dest="dry_run", action="count", default=0,
+                  help="Just print the request and don't upload it")
+
+parser.add_option("-r", "--rate", default=60,
+                  dest="rate", action="store",
+                  help="Upload interval, in seconds.")
+                   
+(options, args) = parser.parse_args()
+
+if len(args) and options.inputFile == None:
+    options.inputFile = args[0]
+
+if options.debug:
+    print options
+
+fh = tables.openFile(OwConfig.h5_file, mode = "r") 
+
+from matplotlib.dates import date2num, num2date
+from numpy import array
+import types
+
+# See From http://wiki.wunderground.com/index.php/PWS_-_Upload_Protocol for the
+# definition of these fields
+request={"ID":options.site_id,
+         "PASSWORD":options.password,
+         "dateutc":time.strftime("%Y-%m-%d %02H:%02M:%02S",time.gmtime()),
+         "softwaretype":"owHdfUploader v0.6",
+         "action":"updateraw",
+         "winddir":"Whead",        # [0-360 instantaneous wind direction]
+         "windspeedmph":"Wspeed",  # [mph instantaneous wind speed]
+         "windgustmph":"Wgust",    # [mph current wind gust, using software specific time period]
+         "tempf":"Toutside",       # [F outdoor temperature]  * for extra outdoor sensors use temp2f, temp3f, and so on
+         "rainin":"RainHour",      # [rain inches over the past hour)] -- the accumulated rainfall in the past 60 min
+         "dailyrain":"RainDay",    # [rain inches so far today in local time]
+         "baromin":"Pambient",     # [barometric pressure inches]
+         "dewptf":"Tdoutside",     # [F outdoor dewpoint F]
+         "humidity":"Hout",        # [% outdoor humidity 0-100%]
+         "weather":"",             # [text] -- metar style (+RA)
+         "clouds":"",              # [text] -- SKC, FEW, SCT, BKN, OVC
+         }
+"""
+windgustdir - [0-360 using software specific time period]
+windspdmph_avg2m  - [mph 2 minute average wind speed mph]
+winddir_avg2m - [0-360 2 minute average wind direction]
+windgustmph_10m - [mph past 10 minutes wind gust mph ]
+windgustdir_10m - [0-360 past 10 minutes wind gust direction]
+solarradiation - [W/m^2]
+UV - [index]
+"""
+
+tEnd = datetime.datetime.now()
+now = date2num(tEnd)
+tStart = datetime.datetime.now() - datetime.timedelta(0,600,0)
+t0 = date2num(tStart)
+
+for name,sname in request.items():
+    if not sname: continue
+    if not OwConfig.sensor_list.has_key(sname): continue
+
+    sensor = OwConfig.sensor_list[sname]
+    value = None
+    try:
+        if sensor['label'] == 'derived':
+            sources = sensor['sources']
+            if sources[0] == 'dewpoint':
+                h_node = fh.getNode("/%s"%sources[2])
+                t_node = fh.getNode("/%s"%sources[1])
+                t = array([ (row['time'], row['val'])
+                            for row in t_node.where('time>t0') ])
+                h = array([ (row['time'], row['val'])
+                            for row in h_node.where('time>t0') ])
+                if options.debug>1:
+                    print sname, t.shape, h.shape
+                value = dewpoint(t[-1,1], h[-1,1])
+            elif sources[0] == 'rainhour':
+                tStart = datetime.datetime.now() - datetime.timedelta(0,3600,0)
+                t0 = date2num(tStart)
+                node = fh.getNode("/%s"%sources[1])
+                data = array([ (row['time'], row['val'])
+                               for row in node.where('time>t0') ])
+                if options.debug>1:
+                    print sname, data.shape
+                value = data[-1,1] - data[0,1]
+            elif sources[0] == 'rainday':
+                t0 = date2num(datetime.datetime.now())
+                t0 = int(t0)
+                node = fh.getNode("/%s"%sources[1])
+                data = array([ (row['time'], row['val'])
+                               for row in node.where('time>t0') ])
+                if options.debug>1:
+                    print sname, data.shape
+                value = data[-1,1] - data[0,1]
+        else:
+            tname = "/%s"%sname
+            table=fh.getNode(tname)
+            data=array([ (row['time'], row['val'])
+                         for row in table.where('time>t0') ])
+            if options.debug>1:
+                print sname,data.shape
+            value = data[-1,1]
+
+    except IndexError:
+        print 'Invalid array index:',sname,data.shape
+
+    if not value:
+        request[name] = ""
+    else:
+        request[name] = "%.2f"%value
+
+fh.close()
+
+if options.debug or options.dry_run: print request
+
+if request['PASSWORD'] and not options.dry_run:
+    from urllib import urlencode, urlopen
+    f = urlopen(options.host, urlencode(request))
+    resp = f.readline()
+    if resp[0:7] != "success":
+        print resp
+    f.close()     
