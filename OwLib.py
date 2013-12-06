@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import ow, time, sys, numpy, solar, datetime
+import ow, time, sys, numpy, datetime
 
 debug=0
 
@@ -134,7 +134,6 @@ def print_values(sensor_list):
 
 
 def find_all_sensors():
-    if debug: print "Scanning 1wire buss..."
     t0 = time.time()
     all_sensors={}
     find_sensors(all_sensors)
@@ -414,15 +413,6 @@ def cav(v):
     d = (m * 45.0 + w)%720
     return d/2
 # end of consensus average
-
-
-def solar_radiation(utc_datetime):
-    """Returns maximum solar radiation at the indicated time"""
-    lon=-97.71623
-    lat=30.43216
-    el=solar.GetAltitude(lat,lon,utc_datetime)
-    r=solar.radiation.GetRadiationDirect(utc_datetime,el)
-    return r
 
 
 if __name__ == "__main__":

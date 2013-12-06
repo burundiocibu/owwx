@@ -1,6 +1,5 @@
 #!/usr/bin/python
 
-owserver = "localhost:4304"
 h5_file = "/home/littlej/wx/ow.h5"
 log_file = "/home/littlej/wx/wx.log"
 png_dir = "/var/www/wx"
@@ -22,9 +21,7 @@ owlabels={
     '28E58F31000000BF':'T4',
     '28309E3100000021':'T6',
     '28725D3100000056':'T7',
-    '282C623100000080':'T8',  # Chip poped off old dallas wind instrument
     '285F5C3100000067':'T9',
-    '2820643100000061':'T10', # Sensor dead and gone.
     '289D9A3100000028':'T11',
     '282E963100000057':'T12',
     '28C48A31000000EC':'T13',
@@ -41,8 +38,6 @@ owlabels={
     '1D2AEA090000004E':'RG1',
     '26DDF8AE000000CB':'P1',
     '1D4CEA090000003F':'WS2',
-    '20D101010000005E':'WH1', # sensor dead and gone
-    '1DE95C0100000047':'WS1', # sensor dead and gone
     '262161E7000000F3':'LS1',
     '10B2CDED01080055':'T22',
     '10F2A1ED01080010':'T23',
@@ -132,118 +127,29 @@ sensor_list = {
         'ignore':False},
 
     'Hout':{
-        'label':'RH4', 'rate':60, 'depth':10, 
+        'label':'RH3', 'rate':60, 'depth':10, 
         'name':'outside humidity',
         'color':'green', 'fmt':'%6.2lf', 'units':'%RH',
         'ignore':False},
 
     'Toutside':{
-        'label':'T24', 'rate':60, 'depth':10, 
+        'label':'T23', 'rate':60, 'depth':10, 
         'name':'outside temp',
         'color':'chocolate', 'fmt':'%6.2lf', 'units':'F',
         'ignore':False},
 
-    'Tmaster_br':{
-        'label':'T18', 'rate':60, 'depth':10, 
-        'name':'master bedroom temp',
-        'color':'darkred', 'fmt':'%6.2lf', 'units':'F',
+    'Tonepi':{
+        'label':'T9', 'rate':60, 'depth':10, 
+        'name':'onepi system temp',
+        'color':'chocolate', 'fmt':'%6.2lf', 'units':'F',
         'ignore':False},
 
-    'Tthermostat':{
-        'label':'T3', 'rate':60, 'depth':10,
-        'name':'living room temp',
-        'color':'darkgreen', 'fmt':'%6.2lf', 'units':'F',
+    'Tgame':{
+        'label':'T3', 'rate':60, 'depth':10, 
+        'name':'game room temp',
+        'color':'chocolate', 'fmt':'%6.2lf', 'units':'F',
         'ignore':False},
 
-    'Tac_dist':{
-        'label':'T4', 'rate':60, 'depth':10, 'lim':100,
-        'name':'ac head temp',
-        'color':'salmon', 'fmt':'%6.2lf', 'units':'F',
-        'ignore':False},
-
-    'Tac_return':{
-        'label':'T0', 'rate':60, 'depth':10,
-        'name':'ac return temp',
-        'color':'plum', 'fmt':'%6.2lf', 'units':'F',
-        'ignore':False},
-
-    'Tac_closet':{
-        'label':'T9', 'rate':60, 'depth':10,
-        'name':'ac closet temp',
-        'color':'orange', 'fmt':'%6.2lf', 'units':'F',
-        'ignore':False},
-
-    'Tw_br':{
-        'label':'T20', 'rate':60, 'depth':10,
-        'name':'Adams bedroom temp',
-        'color':'deeppink', 'fmt':'%6.2lf', 'units':'F',
-        'ignore':False},
-
-    'Te_br':{
-        'label':'T19', 'rate':60, 'depth':10, 
-        'name':'Ryans bedroom temp',
-        'color':'tan', 'fmt':'%6.2lf', 'units':'F',
-        'ignore':False},
-
-    'Tkitchen':{
-        'label':'T21', 'rate':60, 'depth':10,
-        'name':'kitchen temp',
-        'color':'cadetblue', 'fmt':'%6.2lf', 'units':'F',
-        'ignore':False},
-
-    'Tattic':{
-        'label':'T7', 'rate':60, 'depth':10,
-        'name':'attic temp',
-        'color':'red', 'fmt':'%6.2lf', 'units':'F',
-        'ignore':False},
-
-    'Tfridge':{
-        'label':'T15', 'rate':60, 'depth':10, 
-        'name':'fridge temp',
-        'color':'lightgreen', 'fmt':'%6.2lf', 'units':'F',
-        'ignore':False},
-
-    'Tfrzr2fridge':{
-        'label':'T6', 'rate':60, 'depth':10, 'lim':80,
-        'name':'freezer2fridge temp',
-        'color':'darkgreen', 'fmt':'%6.2lf', 'units':'F',
-        'ignore':True},
-
-    'Tfreezer':{
-        'label':'T14', 'rate':60, 'depth':10, 'lim':80,
-        'name':'freezer temp',
-        'color':'blue', 'fmt':'%6.2lf', 'units':'F',
-        'ignore':False},
-
-    'TfrzrIn':{
-        'label':'T11', 'rate':60, 'depth':10, 'lim':50,
-        'name':'freezer inlet temp',
-        'color':'lightblue', 'fmt':'%6.2lf', 'units':'F',
-        'ignore':True},
-
-    'Twh_in':{
-        'label':'T25', 'rate':60, 'depth':10,
-        'name':'water heater inlet',
-        'color':'red', 'fmt':'%6.2lf', 'units':'F',
-        'ignore':False},
-
-    'Twh_out':{
-        'label':'T26', 'rate':60, 'depth':1,
-        'name':'water heater outlet',
-        'color':'red', 'fmt':'%6.2lf', 'units':'F',
-        'ignore':False},
-
-    'Clight':{
-        'label':'LC1', 'rate':60, 'depth':1,
-        'name':'lightning',
-        'color':'blue', 'fmt':'%6.0lf', 'units':'F',
-        'ignore':True},
-
-#    'SunIntensity':{
-#        'label':'LS1', 'rate':60, 'depth':1,
-#        'name':'sunlight',
-#        'color':'orange', 'fmt':'%6.0lf', 'units':'uA',
-#        'ignore':False},
 
     # The following are 'derived' sensors. that means they are computed
     # from readings that are stored in the database
@@ -400,20 +306,14 @@ graph_list = {
         'title':"Air Conditioning Performance",
         'dt':1.0
         },
-
-    'Rinnai': {
-        'sensors':('Twh_in', 'Twh_out',),
-        'title':"Water Heater Performance",
-        'dt':1.5
-        },
 }
 
 
-def init_sensor_list(all_sensors):
+def init_sensor_list(server, all_sensors):
     """Set up the OwConfig sensor list from a list of all sensors on the buss"""
     for n,s in sensor_list.items():
         if s['label'] == 'derived':
-            del  sensor_list[n]
+            del sensor_list[n]
         else:
             s['value'] = None
             s['time'] = None
@@ -430,6 +330,7 @@ def init_sensor_list(all_sensors):
         uid = owaddrs[label]
         if uid in all_sensors:
             s['sensor'] = all_sensors[uid];
+            s['server'] = server
             if s['rate'] < 60:
                 s['sensor'].useCache(False)
         else:
@@ -439,11 +340,5 @@ def init_sensor_list(all_sensors):
         import pprint
         pp = pprint.PrettyPrinter(indent=3)
         pp.pprint(sensor_list)
-
-    if len(missing):
-        print "Failed to find %d sensors" % len(missing)
-        if debug:  print missing
-    elif debug:
-        print "Found all sensors"
 
     return

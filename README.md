@@ -7,7 +7,11 @@ be moved around on the network withouth having to recode the paths to the device
 
 Its really a personal project but I put it on GitHub for any to use.
 
+Python dependancies:
+   numpy, tables, owpython (from owfs)
+   
+
 OwLib.py: routines for finding the location of all the devices on the various owservers.
 OwConfig.py: The configuration of a specific set of devices that should be found.
-owTree: lists the devices found on a server
-
+owTree: lists all the devices found on a specific owserver instance
+owScanBuss: 

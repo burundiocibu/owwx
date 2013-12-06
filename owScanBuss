@@ -1,45 +1,30 @@
 #!/usr/bin/env python
 
-import ow, datetime, time, sys, numpy
-import string
-import tables
-import matplotlib,pylab
+import argparse
+import ow, OwConfig, OwLib
 
-import OwConfig, OwLib
+parser = argparse.ArgumentParser(description="Locates devices in OwConfig.sensor_list on a list of servers.")
 
-def main():
-    from optparse import OptionParser
-    parser = OptionParser()
-    parser.add_option("-d", "--debug",
-                      dest="debug", default=0, action="count",
-                      help="Increase the debug level")
+parser.add_argument("-d", "--debug",
+                  dest="debug", default=0, action="count",
+                  help="Increase the debug level")
 
-    (options, args) = parser.parse_args()
+parser.add_argument("servers", default=["localhost:4304"],
+                  nargs="+",
+                  help="Specify address for owservers to scan. Default is %(default)s")
 
-    OwConfig.debug = options.debug
-    OwLib.debug = options.debug
-    if options.debug:
-        print "Debug: %d" % options.debug
-        print "Connecting to: %s" % OwConfig.owserver
+args = parser.parse_args()
 
-    ow.init(OwConfig.owserver)
- 
-    # See which sensors are actually present on the net and report the missing
-    print "Scanning buss for all devices"
+OwConfig.debug = args.debug
+OwLib.debug = args.debug
+
+for server in args.servers:
+    ow.init(server)
+    print "Scanning", server
     all_sensors = OwLib.find_all_sensors()
-    OwConfig.init_sensor_list(all_sensors)
+    OwConfig.init_sensor_list(server, all_sensors)
+    ow.finish();
 
-    if options.debug==1:
-        for s,c in OwConfig.sensor_list.iteritems():
-            if 'sensor' in c.keys():
-                print s, c['label'], c['sensor']
-    elif options.debug==2:
-        import pprint
-        pp = pprint.PrettyPrinter(indent=3)
-        pp.pprint(OwConfig.sensor_list)
-
-    return
-# end of main()
-
-if __name__ == "__main__":
-    main()
+for s,c in OwConfig.sensor_list.iteritems():
+    if 'sensor' in c.keys():
+        print "{:4s} {:15s} {:12s} {}".format(c['label'], s, c['server'], c['sensor'])
