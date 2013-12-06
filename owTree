@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 import sys
+import argparse
 import ow
 
 
@@ -14,22 +15,20 @@ def tree( sensor ):
 
 
 if __name__ == "__main__":
-    from optparse import OptionParser
-    parser = OptionParser()
-    parser.add_option("-d", "--debug",
+    parser = argparse.ArgumentParser(description="Lists all devices found on the indicated owserver")
+    parser.add_argument("-d", "--debug",
                       dest="debug", default=0, action="count",
                       help="Increase the debug level")
-    parser.add_option("-s", "--server", default="localhost:4304",
+    parser.add_argument("-s", "--server", default="localhost:4304",
                       dest="server", action="store",
-                      help="Specify owserver address")
-    (options, args) = parser.parse_args()
+                      help="Specify owserver address. Default is %(default)s")
+    args = parser.parse_args()
 
-    if options.debug:
-        print "debug: %d" % options.debug
-        print "Connecting to: %s" % options.server
+    if args.debug:
+        print "Connecting to: %s" % args.server
 
     # initialize the interface and set the desired units.
-    ow.init(options.server)
+    ow.init(args.server)
 
     root = ow.Sensor('/')
     tree( root )
